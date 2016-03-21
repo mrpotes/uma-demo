@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Instabook</title>
+  <script type='text/javascript' src='/js/jquery-2.1.4.min.js'></script>
+  <script src="/js/bootstrap.min.js" type="application/ecmascript"></script>
+  <link rel="stylesheet" href="/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="/css/bootstrap-theme.min.css"/>
+</head>
+<body>
+<nav class="navbar navbar-default">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="#">Instabook</a>
+    </div>
+    <div>
+      <ul class="nav navbar-nav navbar-right">
+        <li data-bind="text: userName"></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+  <div class="container" style="margin-top: 50px;" data-bind="foreach: photos">
+    <div class="well">
+      <img data-bind="attr: { src : $parent.photosUri() + '/' + id }" class="img-thumbnail"><br/>
+      <span data-bind="text: name"></span>
+      <a data-bind="attr: { href: policyUri }"><span class="glyphicon glyphicon-share" aria-hidden="true"></span></a>
+    </div>
+  </div>
+  <div class="container well">
+    <form data-bind="attr: { action : photosUri }" method="POST" enctype="multipart/form-data">
+      <span>Name: </span><input type="text" name="name"/>
+      <input type="file" name="image"/>
+      <button type="submit">Upload</button>
+    </form>
+  </div>
+<script type='text/javascript' src='/js/knockout-3.4.0.js'></script>
+<script>
+  var ViewModel = function () {
+    var self = this;
+    this.userId = ko.observable();
+    this.userName = ko.observable();
+    this.photos = ko.observableArray();
+    this.photosUri = ko.computed(function () {
+      return "/users/" + self.userId() + "/photos";
+    });
+  };
+
+  var viewModel = new ViewModel();
+
+  $.getJSON("/me", function(data) {
+    viewModel.userId(data);
+    $.getJSON("/users/" + data, function (data) {
+      viewModel.userName(data.name);
+    });
+    $.getJSON("/users/" + data + "/photos", function (data) {
+      data.forEach(function (i) {
+        viewModel.photos.push(i);
+      });
+    });
+  });
+
+  ko.applyBindings(viewModel);
+</script>
+</body>
+</html>
