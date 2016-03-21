@@ -10,10 +10,10 @@ Instructions for use:
 and `client.uma.com` pointing at localhost.
 * Run redis
 * Install OpenAM on port 8080 using host `as.uma.com`
-** Set up a `demo` realm
-** Set up UMA for the realm, configure not to need elevated trust
-** Create an UMA RS OAuth2 agent called `rs` with password `password`
-** Create an UMA Client OAuth2 agent called `client` with password `password`
+   * Set up a `demo` realm
+   * Set up UMA for the realm, configure not to need elevated trust
+   * Create an UMA RS OAuth2 agent called `rs` with password `password`
+   * Create an UMA Client OAuth2 agent called `client` with password `password`
 * Run the rs and client node apps
 
 You should be able to hit the RS at http://rs.uma.com:9000 and the client at
