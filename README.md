@@ -13,7 +13,13 @@ and `client.uma.com` pointing at localhost.
    * Set up a `demo` realm
    * Set up UMA for the realm, configure not to need elevated trust
    * Create an UMA RS OAuth2 agent called `rs` with password `password`
+    * Scopes: uma_protection, openid, profile
+    * Redirection_uri: http://rs.uma.com:9000/secure/code
+    * Token Endpoint Authentication Method: client_secret_post
    * Create an UMA Client OAuth2 agent called `client` with password `password`
+    * Scopes: uma_authorization, openid, profile
+    * Redirection_uri: http://client.uma.com:10000/secure/code
+    * Token Endpoint Authentication Method: client_secret_post
 * Run the rs and client node apps
 
 You should be able to hit the RS at http://rs.uma.com:9000 and the client at
