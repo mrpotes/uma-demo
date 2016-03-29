@@ -35,11 +35,13 @@ app.route("/users/:user/photos/:id").get(function (req, res) {
     console.log("Loading photo:", requestOptions);
     http.get(requestOptions, function (result) {
         result.on("data", function (chunk) {
+            //console.log("chunk");
             bufs.push(chunk);
         });
         result.on("end", function () {
             console.log("Got response", result.headers);
             if (result.statusCode === 401 && result.headers["www-authenticate"] && result.headers["www-authenticate"].startsWith("UMA")) {
+                console.log("401 and www-authenticate and starts with UMA");
                 var ticket = result.headers["www-authenticate"];
                 ticket = ticket.substring(ticket.indexOf("ticket=") + "ticket='".length);
                 ticket = ticket.substring(0, ticket.length - 1);
@@ -71,7 +73,13 @@ app.route("/users/:user/photos/:id").get(function (req, res) {
                 request.write(data);
                 request.end();
             } else {
-                while (bufs.length) res.write(bufs.pop());
+                for (buf in bufs) {
+                  res.write(bufs[buf]);
+                }
+                //while (bufs.length) {
+                  //buf = bufs.pop() + buf;
+                //}
+                //console.log("buf:" + buf);
                 res.end();
             }
         })

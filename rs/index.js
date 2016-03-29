@@ -71,7 +71,7 @@ app.route("/users/:user/photos").get(function (req, res) {
                             console.log(data);
                             photos.push({
                                 id : id,
-                                policyUri : rsData["user_access_policy_uri"],
+                                policyUri : rsData["user_access_policy_uri"].replace("oauth2/demo/",""),
                                 rsId : rsData["_id"],
                                 name : req.body.name
                             });
@@ -88,7 +88,7 @@ app.route("/users/:user/photos").get(function (req, res) {
     });
 });
 
-function check (req) {
+function check (req, rsId) {
     return new Promise(function (res, rej) {
         console.log("Checking permission to access");
         if (req.cookies.user && req.cookies.user === req.params.user) {
@@ -98,8 +98,9 @@ function check (req) {
                 "client_id": "rs",
                 "client_secret": "password"
             });
-            var token = req.headers.authorization.substring("Bearer ".length);
+            var token = req.headers.authorization.substring(7);
             console.log("Introspecting token", req.headers, token);
+            //console.log("Introspecting token", req.headers.authorization);
             var request = http.request({
                 hostname: "as.uma.com",
                 port: 8080,
@@ -122,7 +123,11 @@ function check (req) {
                         var permissions = resp.permissions;
                         for (var i = 0; i < permissions.length; i++) {
                             console.log("Found permission", permissions[i]);
-                            if (permissions[i]["resource_set_id"] === req.params.id && permissions[i].scopes.indexOf("View")) {
+                            //permissions[i] should look like this:
+                            //  { resource_set_id: '82eef546-4a5f-4dd5-80e9-879ee85ff6b87', scopes: [ 'View' ] }
+                            console.log("req.params: " + JSON.stringify(req.params));
+                            console.log("rsId: " + rsId); 
+                            if (permissions[i]["resource_set_id"] === rsId && permissions[i].scopes.indexOf("View") > -1) {
                                 console.log("Got permission");
                                 res();
                                 return;
@@ -140,69 +145,62 @@ function check (req) {
         }
     });
 }
-
 app.route("/users/:user/photos/:id").get(function (req, res) {
-    check(req).then(function () {
-        redis.hget("photos", req.params.user, function (err, reply) {
-            if (reply) {
-                var photos = JSON.parse(reply);
-                for (var i = 0; i < photos.length; i++) {
-                    if (photos[i].id === req.params.id) {
-                        res.sendfile(__dirname + "/images/" + req.params.id);
-                        return;
-                    }
-                }
-                res.sendStatus(404);
-            }
-        });
-    }, function () {
-        console.log("Not yet authorized");
-        if (req.headers.authorization) {
-            res.sendStatus(403);
-        } else {
-            redis.hget("photos", req.params.user, function (err, photoReply) {
-                redis.hget("tokens", req.params.user, function (err, tokenReply) {
-                    if (tokenReply) {
-                        var photos = JSON.parse(photoReply);
-                        for (var i = 0; i < photos.length; i++) {
-                            if (photos[i].id === req.params.id) {
-                                var data = JSON.stringify({
-                                    "resource_set_id": photos[i].rsId,
-                                    "scopes": [ "View" ]
-                                });
-                                var requestOptions = {
-                                    hostname: "as.uma.com",
-                                    port: 8080,
-                                    path: "/openam/uma/demo/permission_request",
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Length": data.length,
-                                        "Content-Type": "application/x-www-form-urlencoded",
-                                        "Authorization": "Bearer " + tokenReply
-                                    }
-                                };
-                                console.log("Requesting ticket for", data);
-                                console.log("Request options", requestOptions);
-                                var request = http.request(requestOptions, function (result) {
-                                    var data = "";
-                                    result.on("data", function (chunk) {
-                                        data += chunk;
+    redis.hget("photos", req.params.user, function (err, reply) {
+        if (reply) {
+            var photos = JSON.parse(reply);
+            for (var i = 0; i < photos.length; i++) {
+                if (photos[i].id === req.params.id) {
+                    check(req, photos[i].rsId).then(function () {
+                        console.log("Resource to send: " + __dirname + "/images/" + req.params.id); 
+                        res.sendFile(__dirname + "/images/" + req.params.id);
+                    }, function () {
+                        console.log("Not yet authorized");
+                        if (req.headers.authorization) {
+                            res.sendStatus(403);
+                        } else {
+                            redis.hget("tokens", req.params.user, function (err, tokenReply) {
+                                if (tokenReply) {
+                                    var data = JSON.stringify({
+                                        "resource_set_id": photos[i].rsId,
+                                        "scopes": [ "View" ]
                                     });
-                                    result.on("end", function () {
-                                        var resp = JSON.parse(data);
-                                        console.log("Permission request response", resp);
-                                        res.set("WWW-Authenticate", 'UMA as_uri="http://as.uma.com:8080/openam/uma/demo", ' +
-                                            'ticket="' + resp.ticket + '"');
-                                        res.sendStatus(401);
+                                    var requestOptions = {
+                                        hostname: "as.uma.com",
+                                        port: 8080,
+                                        path: "/openam/uma/demo/permission_request",
+                                        method: "POST",
+                                        headers: {
+                                            "Content-Length": data.length,
+                                            "Content-Type": "application/x-www-form-urlencoded",
+                                            "Authorization": "Bearer " + tokenReply
+                                        }
+                                    };
+                                    console.log("Requesting ticket for", data);
+                                    console.log("Request options", requestOptions);
+                                    var request = http.request(requestOptions, function (result) {
+                                        var data = "";
+                                        result.on("data", function (chunk) {
+                                            data += chunk;
+                                        });
+                                        result.on("end", function () {
+                                            var resp = JSON.parse(data);
+                                            console.log("Permission request response", resp);
+                                            res.set("WWW-Authenticate", 'UMA as_uri="http://as.uma.com:8080/openam/uma/demo", ' +
+                                                'ticket="' + resp.ticket + '"');
+                                            res.sendStatus(401);
+                                        });
                                     });
-                                });
-                                request.write(data);
-                                request.end();
-                            }
+                                    request.write(data);
+                                    request.end();
+                                }
+                            });
                         }
-                    }
-                });
-            });
+                    });
+                    return;
+                }
+            }
+            res.sendStatus(404);
         }
     });
 });
@@ -231,6 +229,7 @@ app.route("/secure/code").get(function (req, res) {
         });
         result.on("end", function () {
             var tokens = JSON.parse(data);
+            console.log("tokens: " + JSON.stringify(tokens));
             var idToken = jwt.decode(tokens["id_token"]);
             console.log("Got id token", JSON.stringify(idToken, 2));
             if (!idToken) {
